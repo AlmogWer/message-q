@@ -1,89 +1,133 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 
-const apiUrl = 'http://localhost:8000/api';
+const API_BASE_URL = 'http://localhost:8000';
 
-const App: React.FC = () => {
-  const [queues, setQueues] = useState<{ name: string; count: number }[]>([]);
+interface Queues {
+  [key: string]: number;
+}
+
+interface Message {
+  message: string;
+}
+
+function App() {
+  const [queues, setQueues] = useState<Queues>({});
   const [selectedQueue, setSelectedQueue] = useState<string>('');
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [newMessage, setNewMessage] = useState<string>('');
+  const [fetchedMessage, setFetchedMessage] = useState<string>('');
 
   useEffect(() => {
-    setQueues([
-      { name: 'queue1', count: 1 },
-      { name: 'queue2', count: 1 },
-    ]);
+    fetchQueues();
+    const interval = setInterval(fetchQueues, 5000);
+    return () => clearInterval(interval);
   }, []);
 
-  const handleQueueSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedQueue(e.target.value);
+  const fetchQueues = async () => {
+    try {
+      const response = await axios.get<Queues>(`${API_BASE_URL}/api/queues`);
+      setQueues(response.data);
+    } catch (error) {
+      console.error('Error fetching queues:', error);
+    }
   };
 
-  const handleGoClick = async () => {
-    if (!selectedQueue) {
-      setError('Please select a queue');
-      return;
-    }
-
-    setError(null);
-    setMessage(null);
-    setLoading(true);
-
+  const handleAddMessage = async () => {
     try {
-      const response = await fetch(`${apiUrl}/${selectedQueue}?timeout=5000`);
+      await axios.post(`${API_BASE_URL}/api/${selectedQueue}`, {
+        content: { message: newMessage },
+      });
+      setNewMessage('');
+      fetchQueues();
+    } catch (error) {
+      console.error('Error adding message:', error);
+    }
+  };
 
-      if (response.status === 204) {
-        setError('No messages available in the queue');
-      } else if (response.ok) {
-        const data = await response.json();
-        setMessage(data.message);
-      } else {
-        setError('Failed to fetch message');
-      }
-    } catch (err: any) {
-      setError(`Network error: ${err.message}`);
-    } finally {
-      setLoading(false);
+  const handleGetMessage = async () => {
+    try {
+      const response = await axios.get<Message>(
+        `${API_BASE_URL}/api/${selectedQueue}`
+      );
+      setFetchedMessage(JSON.stringify(response.data, null, 2));
+      fetchQueues();
+    } catch (error) {
+      console.error('Error fetching message:', error);
     }
   };
 
   return (
-    <div className='min-h-screen bg-dark-900 text-white p-6'>
-      <h1 className='text-4xl font-bold text-voyantis-blue mb-8'>
-        Message Queue Dashboard
-      </h1>
+    <div className='min-h-screen bg-gradient-to-r from-indigo-600 to-blue-400 text-white p-8'>
+      <h1 className='text-4xl font-bold mb-8'>Queue Management System</h1>
 
-      <div className='mb-6'>
-        <label className='block text-xl font-medium mb-2'>Select Queue</label>
-        <select
-          value={selectedQueue}
-          onChange={handleQueueSelect}
-          className='block w-full p-3 border border-gray-700 bg-dark-700 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-voyantis-blue'
-        >
-          <option value=''>-- Select Queue --</option>
-          {queues.map((queue) => (
-            <option key={queue.name} value={queue.name}>
-              {queue.name} ({queue.count} messages)
-            </option>
+      <div className='mb-8'>
+        <h2 className='text-2xl font-semibold mb-4'>Queues</h2>
+        <div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4'>
+          {Object.entries(queues).map(([name, count]) => (
+            <div
+              key={name}
+              className='bg-white text-gray-800 p-4 rounded shadow'
+            >
+              <h3 className='font-semibold'>{name}</h3>
+              <p>Messages: {count}</p>
+            </div>
           ))}
-        </select>
+        </div>
       </div>
 
-      <button
-        onClick={handleGoClick}
-        className='w-full p-3 bg-voyantis-blue text-white font-semibold rounded-md shadow-md hover:bg-voyantis-blue-dark focus:outline-none focus:ring-2 focus:ring-voyantis-blue'
-        disabled={loading}
-      >
-        {loading ? 'Loading...' : 'Go'}
-      </button>
+      <div className='mb-8'>
+        <h2 className='text-2xl font-semibold mb-4'>Add Message</h2>
+        <input
+          type='text'
+          value={selectedQueue}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+            setSelectedQueue(e.target.value)
+          }
+          placeholder='Queue name'
+          className='mr-2 p-2 text-gray-800 rounded'
+        />
+        <input
+          type='text'
+          value={newMessage}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+            setNewMessage(e.target.value)
+          }
+          placeholder='Message'
+          className='mr-2 p-2 text-gray-800 rounded'
+        />
+        <button
+          onClick={handleAddMessage}
+          className='bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded'
+        >
+          Add Message
+        </button>
+      </div>
 
-      {error && <p className='mt-4 text-red-500 font-semibold'>{error}</p>}
-      {message && (
-        <p className='mt-4 text-green-500 font-semibold'>Message: {message}</p>
-      )}
+      <div className='mb-8'>
+        <h2 className='text-2xl font-semibold mb-4'>Get Message</h2>
+        <input
+          type='text'
+          value={selectedQueue}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+            setSelectedQueue(e.target.value)
+          }
+          placeholder='Queue name'
+          className='mr-2 p-2 text-gray-800 rounded'
+        />
+        <button
+          onClick={handleGetMessage}
+          className='bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded'
+        >
+          Get Message
+        </button>
+        {fetchedMessage && (
+          <pre className='mt-4 p-4 bg-white text-gray-800 rounded overflow-auto'>
+            {fetchedMessage}
+          </pre>
+        )}
+      </div>
     </div>
   );
-};
+}
 
 export default App;
