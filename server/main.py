@@ -32,6 +32,11 @@ async def add_message(queue_name: str, message: Message):
     return {"status": "Message added to queue"}
 
 
+@app.get("/api/queues")
+async def get_queues():
+    return {queue: len(messages) for queue, messages in queues.items()}
+
+
 @app.get("/api/{queue_name}")
 async def get_message(queue_name: str, timeout: Optional[int] = 10000):
     start_time = time.time()
@@ -40,11 +45,6 @@ async def get_message(queue_name: str, timeout: Optional[int] = 10000):
             return queues[queue_name].pop(0)
         await asyncio.sleep(0.1)
     raise HTTPException(status_code=204, detail="No message available")
-
-
-@app.get("/api/queues")
-async def get_queues():
-    return {queue: len(messages) for queue, messages in queues.items()}
 
 
 if __name__ == "__main__":
